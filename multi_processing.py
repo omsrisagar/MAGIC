@@ -71,7 +71,7 @@ class MultiProcessTrainer(object):
                 comm.send('send_grads')
                 self.worker_grads.append(comm.recv())
 
-    def train_batch(self, epoch):
+    def train_batch(self, epoch, eval=False):
         # run workers in parallel
         for comm in self.comms:
             comm.send(['run_batch', epoch])

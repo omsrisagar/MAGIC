@@ -132,7 +132,7 @@ class PredatorPreyEnv(gym.Env):
         action = np.atleast_1d(action)
 
         for i, a in enumerate(action):
-            self._take_action(i, a)
+            self._take_action(i, a) # update self.predator_loc based on the taken action
 
         assert np.all(action <= self.naction), "Actions should be in the range [0,naction)."
 
@@ -155,16 +155,16 @@ class PredatorPreyEnv(gym.Env):
         self.reached_prey = np.zeros(self.npredator)
 
         # Locations
-        locs = self._get_cordinates()
+        locs = self._get_cordinates() # randomly allocate positions for predators and preys
         self.predator_loc, self.prey_loc = locs[:self.npredator], locs[self.npredator:]
 
-        self._set_grid()
+        self._set_grid() # generate an initialized padded grid with onehot encoding (104 dim) for each cell 12x12x104 # self.grid = 12x12; self.empty_bool_base_grid is above.
 
         # stat - like success ratio
         self.stat = dict()
 
         # Observation will be npredator * vision * vision ndarray
-        self.obs = self._get_obs()
+        self.obs = self._get_obs() # 5 x 3 x 3 x 104 5 predators, 3x3 visible area; each cell 104 onehot encoding
 
         return self.obs
 
@@ -187,7 +187,7 @@ class PredatorPreyEnv(gym.Env):
         self.empty_bool_base_grid = self._onehot_initialization(self.grid)
 
     def _get_obs(self):
-        self.bool_base_grid = self.empty_bool_base_grid.copy()
+        self.bool_base_grid = self.empty_bool_base_grid.copy() # always uses the same empty initial grid and then updates it with predator and prey's positions
 
         for i, p in enumerate(self.predator_loc):
             self.bool_base_grid[p[0] + self.vision, p[1] + self.vision, self.PREDATOR_CLASS] += 1
@@ -223,7 +223,7 @@ class PredatorPreyEnv(gym.Env):
             return
 
         # STAY action
-        if act==5:
+        if act==5: # isn't this supposed to 4?
             return
 
         # UP
@@ -260,12 +260,12 @@ class PredatorPreyEnv(gym.Env):
         nb_predator_on_prey = on_prey.size
 
         if self.mode == 'cooperative':
-            reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey
+            reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey # whoever was on prey each will get combined reward
         elif self.mode == 'competitive':
             if nb_predator_on_prey:
-                reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey
+                reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey # whoever was on prey will each get POS_PREY_REWARD
         elif self.mode == 'mixed':
-            reward[on_prey] = self.PREY_REWARD
+            reward[on_prey] = self.PREY_REWARD # whoever was on prey will each get PREY_REWARD
         else:
             raise RuntimeError("Incorrect mode, Available modes: [cooperative|competitive|mixed]")
 

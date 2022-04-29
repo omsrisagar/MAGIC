@@ -126,7 +126,8 @@ parser.add_argument('--display', action="store_true", default=False,
                     help='display environment state')
 parser.add_argument('--random', action='store_true', default=False,
                     help="enable random model")
-
+parser.add_argument('--eval', action="store_true", default=False,
+                    help='Run in eval mode (nprocesses should be set to 1)')
 
 init_args_for_env(parser)
 args = parser.parse_args()
@@ -211,9 +212,10 @@ else:
         curr_run = 'run1'
     else:
         curr_run = 'run%i' % (max(exst_run_nums) + 1)
-run_dir = model_dir / curr_run 
+run_dir = model_dir / curr_run
+print(f'Run dir: {run_dir}')
 
-def run(num_epochs): 
+def run(num_epochs, eval=False):
     num_episodes = 0
     if args.save:
         os.makedirs(run_dir)
@@ -223,7 +225,7 @@ def run(num_epochs):
         for n in range(args.epoch_size):
             if n == args.epoch_size - 1 and args.display:
                 trainer.display = True
-            s = trainer.train_batch(ep)
+            s = trainer.train_batch(ep, eval)
             print('batch: ', n)
             merge_stat(s, stat)
             trainer.display = False
@@ -258,6 +260,9 @@ def run(num_epochs):
             print('Comm-Action: {}'.format(stat['comm_action']))
         if 'enemy_comm' in stat.keys():
             print('Enemy-Comm: {}'.format(stat['enemy_comm']))
+
+        if eval:
+            return
 
         if args.plot:
             for k, v in log.items():
@@ -299,7 +304,7 @@ signal.signal(signal.SIGINT, signal_handler)
 if args.load != '':
     load(args.load)
 
-run(args.num_epochs)
+run(args.num_epochs, args.eval)
 if args.display:
     env.end_display()
 

@@ -17,6 +17,7 @@ class Trainer(object):
         self.policy_net = policy_net
         self.env = env
         self.display = False
+        # self.display = args.display
         self.last_step = False
         self.optimizer = optim.RMSprop(policy_net.parameters(),
             lr = args.lrate, alpha=0.97, eps=1e-6)
@@ -65,7 +66,7 @@ class Trainer(object):
             if hasattr(self.args, 'enemy_comm') and self.args.enemy_comm:
                 stat['enemy_reward'] = stat.get('enemy_reward', 0) + reward[self.args.nfriendly:]
 
-            done = done or t == self.args.max_steps - 1
+            done = done or t == self.args.max_steps - 1 # done == episode_over (when all predators are on prey in mixed mode)
 
             episode_mask = np.ones(reward.shape)
             episode_mini_mask = np.ones(reward.shape)
@@ -88,16 +89,16 @@ class Trainer(object):
         stat['steps_taken'] = stat['num_steps']
 
         if hasattr(self.env, 'reward_terminal'):
-            reward = self.env.reward_terminal()
+            reward = self.env.reward_terminal() # all zeros
 
-            episode[-1] = episode[-1]._replace(reward = episode[-1].reward + reward)
-            stat['reward'] = stat.get('reward', 0) + reward[:self.args.nfriendly]
+            episode[-1] = episode[-1]._replace(reward = episode[-1].reward + reward) # add terminal reward to the last transition
+            stat['reward'] = stat.get('reward', 0) + reward[:self.args.nfriendly] # add terminal reward to the reward in the stat as well
             if hasattr(self.args, 'enemy_comm') and self.args.enemy_comm:
                 stat['enemy_reward'] = stat.get('enemy_reward', 0) + reward[self.args.nfriendly:]
 
 
         if hasattr(self.env, 'get_stat'):
-            merge_stat(self.env.get_stat(), stat)
+            merge_stat(self.env.get_stat(), stat) # get_stat() removes step_taken and returns success (1 if all predators are on prey else 0)
         return (episode, stat)
 
 
@@ -215,19 +216,22 @@ class Trainer(object):
         batch = Transition(*zip(*batch))
         return batch, self.stats
 
-    def train_batch(self, epoch):
+    def train_batch(self, epoch, eval):
+        if eval:
+            self.policy_net.eval()
         batch, stat = self.run_batch(epoch)
-        self.optimizer.zero_grad()
+        if not eval:
+            self.optimizer.zero_grad()
 
-        s = self.compute_grad(batch)
-        merge_stat(s, stat)
-#         for name, param in self.policy_net.named_parameters():
-#             print(name)
-#             print(param.grad)
-        for p in self.params:
-            if p._grad is not None:
-                p._grad.data /= stat['num_steps']
-        self.optimizer.step()
+            s = self.compute_grad(batch)
+            merge_stat(s, stat)
+    #         for name, param in self.policy_net.named_parameters():
+    #             print(name)
+    #             print(param.grad)
+            for p in self.params:
+                if p._grad is not None:
+                    p._grad.data /= stat['num_steps']
+            self.optimizer.step()
 
         return stat
 
