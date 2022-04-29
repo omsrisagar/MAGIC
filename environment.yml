@@ -7,6 +7,8 @@ channels:
 dependencies:
   - python==3.7
   - gym
+  - pytorch==1.5.0
+  - torchvision==0.6.0
   - pip:
     - visdom
 prefix: /Users/srikanth/miniconda3/envs/marl
