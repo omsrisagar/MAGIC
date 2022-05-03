@@ -7,6 +7,7 @@ import torch.nn as nn
 from utils import *
 from action_utils import *
 import itertools
+import time
 
 Transition = namedtuple('Transition', ('state', 'action', 'action_out', 'value', 'episode_mask', 'episode_mini_mask', 'next_state', 'reward', 'misc'))
 
@@ -199,14 +200,18 @@ class Trainer(object):
 
         return stat
 
-    def run_batch(self, epoch):
+    def run_batch(self, epoch, eval):
         batch = []
         self.stats = dict()
         self.stats['num_episodes'] = 0
         while len(batch) < self.args.batch_size:
-            if self.args.batch_size - len(batch) <= self.args.max_steps:
+            if self.args.batch_size - len(batch) <= self.args.max_steps or eval:
                 self.last_step = True
+            if eval and len(batch)==0:
+                time.sleep(4)
             episode, episode_stat = self.get_episode(epoch)
+            if eval:
+                time.sleep(4)
             merge_stat(episode_stat, self.stats)
             self.stats['num_episodes'] += 1
             batch += episode
@@ -219,7 +224,7 @@ class Trainer(object):
     def train_batch(self, epoch, eval):
         if eval:
             self.policy_net.eval()
-        batch, stat = self.run_batch(epoch)
+        batch, stat = self.run_batch(epoch, eval)
         if not eval:
             self.optimizer.zero_grad()
 
