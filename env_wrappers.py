@@ -65,7 +65,7 @@ class GymWrapper(object):
         return obs
 
     def display(self):
-        wrapper(self.env.render())
+        self.env.render()
         time.sleep(0.5)
 
     def end_display(self):

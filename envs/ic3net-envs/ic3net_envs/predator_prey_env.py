@@ -321,20 +321,27 @@ class PredatorPreyEnv(gym.Env):
             else:
                 grid[p[0]][p[1]] = 'P'
 
-        for row_num, row in enumerate(grid):
-            for idx, item in enumerate(row):
-                if item != 0:
-                    if 'X' in item and 'P' in item:
-                        self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(3))
-                    elif 'X' in item:
-                        self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(1))
+        try:
+            for row_num, row in enumerate(grid):
+                for idx, item in enumerate(row):
+                    if item != 0:
+                        if 'X' in item and 'P' in item:
+                            self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(3))
+                        elif 'X' in item:
+                            self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(1))
+                        else:
+                            self.stdscr.addstr(row_num, idx * 4, item.center(3),  curses.color_pair(2))
                     else:
-                        self.stdscr.addstr(row_num, idx * 4, item.center(3),  curses.color_pair(2))
-                else:
-                    self.stdscr.addstr(row_num, idx * 4, '0'.center(3), curses.color_pair(4))
+                        self.stdscr.addstr(row_num, idx * 4, '0'.center(3), curses.color_pair(4))
 
-        self.stdscr.addstr(len(grid), 0, '\n')
-        self.stdscr.refresh()
+            self.stdscr.addstr(len(grid), 0, '\n')
+            self.stdscr.refresh()
+        except:
+            curses.nocbreak()
+            self.stdscr.keypad(0)
+            curses.echo()
+            curses.endwin()
+            raise
 
     def exit_render(self):
         curses.endwin()
