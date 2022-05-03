@@ -27,4 +27,7 @@ python -u main.py \
   --message_decoder \
   --save \
   --seed 0 \
+  --display \
+  --plot \
+  --save_every 20 \
   | tee train_pp_hard.log

@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from gym import spaces
 from inspect import getargspec
+from curses import wrapper
 
 class GymWrapper(object):
     '''
@@ -64,7 +65,7 @@ class GymWrapper(object):
         return obs
 
     def display(self):
-        self.env.render()
+        wrapper(self.env.render())
         time.sleep(0.5)
 
     def end_display(self):

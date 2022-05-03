@@ -200,7 +200,7 @@ class Trainer(object):
 
         return stat
 
-    def run_batch(self, epoch, eval):
+    def run_batch(self, epoch, eval=False):
         batch = []
         self.stats = dict()
         self.stats['num_episodes'] = 0
