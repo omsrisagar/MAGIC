@@ -72,8 +72,12 @@ parser.add_argument('--message_encoder', action='store_true', default=False,
                     help='whether use the message encoder')
 parser.add_argument('--message_decoder', action='store_true', default=False,
                     help='whether use the message decoder')
-parser.add_argument('--nagents', type=int, default=1,
-                    help="number of agents")
+# parser.add_argument('--nagents', type=int, default=1,
+#                     help="number of agents")
+parser.add_argument('--n_sense_agents', type=int, default=1,
+                    help="number of sense predator agents")
+parser.add_argument('--n_capture_agents', type=int, default=1,
+                    help="number of capture predator agents")
 parser.add_argument('--mean_ratio', default=0, type=float,
                     help='how much coooperative to do? 1.0 means fully cooperative')
 parser.add_argument('--detach_gap', default=10000, type=int,
@@ -131,6 +135,7 @@ parser.add_argument('--eval', action="store_true", default=False,
 
 init_args_for_env(parser)
 args = parser.parse_args()
+args.nagents = args.n_sense_agents + args.n_capture_agents
 
 args.nfriendly = args.nagents
 if hasattr(args, 'enemy_comm') and args.enemy_comm:

@@ -19,7 +19,7 @@ class MAGIC(nn.Module):
         """
 
         self.args = args
-        self.nagents = args.nagents
+        self.nagents = args.n_sense_agents + args.n_capture_agents
         self.hid_size = args.hid_size
         
         dropout = 0

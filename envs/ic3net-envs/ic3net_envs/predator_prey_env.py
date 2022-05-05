@@ -34,9 +34,10 @@ class PredatorPreyEnv(gym.Env):
         self.__version__ = "0.0.1"
 
         # TODO: better config handling
-        self.OUTSIDE_CLASS = 1
-        self.PREY_CLASS = 2
-        self.PREDATOR_CLASS = 3
+        self.OUTSIDE_CLASS = 0
+        self.PREY_CLASS = 1
+        self.PREDATOR_SENSE_CLASS = 2
+        self.PREDATOR_CAPTURE_CLASS = 3
         self.TIMESTEP_PENALTY = -0.05
         self.PREY_REWARD = 0
         self.POS_PREY_REWARD = 0.05
@@ -59,7 +60,7 @@ class PredatorPreyEnv(gym.Env):
         env.add_argument('--dim', type=int, default=5,
                          help="Dimension of box")
         env.add_argument('--vision', type=int, default=2,
-                         help="Vision of predator")
+                         help="Vision of sense predator")
         env.add_argument('--moving_prey', action="store_true", default=False,
                          help="Whether prey is fixed or moving")
         env.add_argument('--no_stay', action="store_true", default=False,
@@ -77,7 +78,9 @@ class PredatorPreyEnv(gym.Env):
             setattr(self, key, getattr(args, key))
 
         self.nprey = args.nenemies
-        self.npredator = args.nfriendly
+        self.n_sense_predator = args.n_sense_agents
+        self.n_capture_predator = args.n_capture_agents
+        self.npredator = self.n_sense_predator + self.n_capture_predator
         self.dims = dims = (self.dim, self.dim)
         self.stay = not args.no_stay
 
@@ -94,14 +97,14 @@ class PredatorPreyEnv(gym.Env):
 
         self.action_space = spaces.MultiDiscrete([self.naction])
 
-        self.BASE = (dims[0] * dims[1]) # class 0 is leftout. Actually while assigning, class 100 is left out, # so classes 0 to 99 correspond to grid cells, 101 to outside class, 102-prey, 103-predator
-        self.OUTSIDE_CLASS += self.BASE
-        self.PREY_CLASS += self.BASE
-        self.PREDATOR_CLASS += self.BASE
+        self.BASE = (dims[0] * dims[1])
+        self.OUTSIDE_CLASS += self.BASE # 100
+        self.PREY_CLASS += self.BASE # 101
+        self.PREDATOR_SENSE_CLASS += self.BASE # 102
+        self.PREDATOR_CAPTURE_CLASS += self.BASE # 103
 
         # Setting max vocab size for 1-hot encoding
-        self.vocab_size = 1 + 1 + self.BASE + 1 + 1 # what is the extra one - does this mean class 0 is nothing?
-        #          predator + prey + grid + outside
+        self.vocab_size = 1 + 1 + self.BASE + 1 + 1 # 2 predators + grid + prey + outside
 
         # Observation for each agent will be vision * vision ndarray
         self.observation_space = spaces.Box(low=0, high=1, shape=(self.vocab_size, (2 * self.vision) + 1, (2 * self.vision) + 1), dtype=int)
@@ -152,7 +155,7 @@ class PredatorPreyEnv(gym.Env):
         observation (object): the initial observation of the space.
         """
         self.episode_over = False
-        self.reached_prey = np.zeros(self.npredator)
+        self.reached_prey = np.zeros(self.n_capture_predator)
 
         # Locations
         locs = self._get_cordinates() # randomly allocate positions for predators and preys
@@ -189,17 +192,26 @@ class PredatorPreyEnv(gym.Env):
     def _get_obs(self):
         self.bool_base_grid = self.empty_bool_base_grid.copy() # always uses the same empty initial grid and then updates it with predator and prey's positions
 
-        for i, p in enumerate(self.predator_loc):
-            self.bool_base_grid[p[0] + self.vision, p[1] + self.vision, self.PREDATOR_CLASS] += 1
+        for i, p in enumerate(self.predator_loc[:self.n_sense_predator]):
+            self.bool_base_grid[p[0] + self.vision, p[1] + self.vision, self.PREDATOR_SENSE_CLASS] += 1
+
+        for i, p in enumerate(self.predator_loc[self.n_sense_predator:]):
+            self.bool_base_grid[p[0] + self.vision, p[1] + self.vision, self.PREDATOR_CAPTURE_CLASS] += 1
 
         for i, p in enumerate(self.prey_loc):
             self.bool_base_grid[p[0] + self.vision, p[1] + self.vision, self.PREY_CLASS] += 1
 
         obs = []
-        for p in self.predator_loc:
+        for p in self.predator_loc[:self.n_sense_predator]: # sense predators have visiblity as per vision parameter
             slice_y = slice(p[0], p[0] + (2 * self.vision) + 1)
             slice_x = slice(p[1], p[1] + (2 * self.vision) + 1)
             obs.append(self.bool_base_grid[slice_y, slice_x])
+
+        for p in self.predator_loc[self.n_sense_predator:]: # capture predators have no visibility
+            slice_y = slice(p[0] + self.vision, p[0] + self.vision + 1) # exact p[0] location considering vision padding
+            slice_x = slice(p[1] + self.vision, p[1] + self.vision + 1)
+            ego_obs = self.bool_base_grid[slice_y, slice_x]
+            obs.append(np.tile(ego_obs, (2 * self.vision + 1, 2 * self.vision + 1, 1)))
 
         if self.enemy_comm:
             for p in self.prey_loc:
@@ -219,55 +231,57 @@ class PredatorPreyEnv(gym.Env):
             else:
                 raise NotImplementedError
 
-        if self.reached_prey[idx] == 1:
-            return
+        if idx >= self.n_sense_predator and idx < self.npredator: # capture agent
+            idx_cap = idx - self.n_sense_predator
+            if self.reached_prey[idx_cap] == 1: # capture agent has reached the prey
+                return
 
         # STAY action
-        if act==5: # isn't this supposed to 4?
+        if act==4: # isn't this supposed to 4?
             return
 
         # UP
         if act==0 and self.grid[max(0,
-                                self.predator_loc[idx][0] + self.vision - 1),
+                                    self.predator_loc[idx][0] + self.vision - 1),
                                 self.predator_loc[idx][1] + self.vision] != self.OUTSIDE_CLASS:
             self.predator_loc[idx][0] = max(0, self.predator_loc[idx][0]-1)
 
-        # RIGHT
+        # right
         elif act==1 and self.grid[self.predator_loc[idx][0] + self.vision,
-                                min(self.dims[1] -1,
-                                    self.predator_loc[idx][1] + self.vision + 1)] != self.OUTSIDE_CLASS:
+                                  min(self.dims[1] -1,
+                                      self.predator_loc[idx][1] + self.vision + 1)] != self.OUTSIDE_CLASS:
             self.predator_loc[idx][1] = min(self.dims[1]-1,
-                                            self.predator_loc[idx][1]+1)
+                                       self.predator_loc[idx][1]+1)
 
-        # DOWN
+        # down
         elif act==2 and self.grid[min(self.dims[0]-1,
-                                    self.predator_loc[idx][0] + self.vision + 1),
-                                    self.predator_loc[idx][1] + self.vision] != self.OUTSIDE_CLASS:
+                                      self.predator_loc[idx][0] + self.vision + 1),
+                                  self.predator_loc[idx][1] + self.vision] != self.OUTSIDE_CLASS:
             self.predator_loc[idx][0] = min(self.dims[0]-1,
-                                            self.predator_loc[idx][0]+1)
+                                       self.predator_loc[idx][0]+1)
 
-        # LEFT
+        # left
         elif act==3 and self.grid[self.predator_loc[idx][0] + self.vision,
-                                    max(0,
-                                    self.predator_loc[idx][1] + self.vision - 1)] != self.OUTSIDE_CLASS:
+                                  max(0,
+                                      self.predator_loc[idx][1] + self.vision - 1)] != self.OUTSIDE_CLASS:
             self.predator_loc[idx][1] = max(0, self.predator_loc[idx][1]-1)
 
     def _get_reward(self):
-        n = self.npredator if not self.enemy_comm else self.npredator + self.nprey
+        n = self.n_capture_predator if not self.enemy_comm else self.n_capture_predator + self.nprey
         reward = np.full(n, self.TIMESTEP_PENALTY)
 
-        on_prey = np.where(np.all(self.predator_loc == self.prey_loc,axis=1))[0]
+        on_prey = np.where(np.all(self.predator_loc[self.n_sense_predator: self.npredator] == self.prey_loc,axis=1))[0]
         nb_predator_on_prey = on_prey.size
 
         if self.mode == 'cooperative':
             reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey # whoever was on prey each will get combined reward
         elif self.mode == 'competitive':
             if nb_predator_on_prey:
-                reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey # whoever was on prey will each get POS_PREY_REWARD
+                reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey # whoever was on prey will each get pos_prey_reward
         elif self.mode == 'mixed':
-            reward[on_prey] = self.PREY_REWARD # whoever was on prey will each get PREY_REWARD
+            reward[on_prey] = self.PREY_REWARD # whoever was on prey will each get prey_reward
         else:
-            raise RuntimeError("Incorrect mode, Available modes: [cooperative|competitive|mixed]")
+            raise RuntimeError("incorrect mode, available modes: [cooperative|competitive|mixed]")
 
         self.reached_prey[on_prey] = 1
 
@@ -276,14 +290,14 @@ class PredatorPreyEnv(gym.Env):
 
         # Prey reward
         if nb_predator_on_prey == 0:
-            reward[self.npredator:] = -1 * self.TIMESTEP_PENALTY
+            reward[self.n_capture_predator:] = -1 * self.TIMESTEP_PENALTY
         else:
             # TODO: discuss & finalise
-            reward[self.npredator:] = 0
+            reward[self.n_capture_predator:] = 0
 
         # Success ratio
         if self.mode != 'competitive':
-            if nb_predator_on_prey == self.npredator:
+            if nb_predator_on_prey == self.n_capture_predator:
                 self.stat['success'] = 1
             else:
                 self.stat['success'] = 0
@@ -309,11 +323,17 @@ class PredatorPreyEnv(gym.Env):
         grid = np.zeros(self.BASE, dtype=object).reshape(self.dims)
         self.stdscr.clear()
 
-        for p in self.predator_loc:
+        for p in self.predator_loc[:self.n_sense_predator]:
             if grid[p[0]][p[1]] != 0:
-                grid[p[0]][p[1]] = str(grid[p[0]][p[1]]) + 'X'
+                grid[p[0]][p[1]] = str(grid[p[0]][p[1]]) + 'S'
             else:
-                grid[p[0]][p[1]] = 'X'
+                grid[p[0]][p[1]] = 'S'
+
+        for p in self.predator_loc[self.n_sense_predator:]:
+            if grid[p[0]][p[1]] != 0:
+                grid[p[0]][p[1]] = str(grid[p[0]][p[1]]) + 'C'
+            else:
+                grid[p[0]][p[1]] = 'C'
 
         for p in self.prey_loc:
             if grid[p[0]][p[1]] != 0:
@@ -325,9 +345,9 @@ class PredatorPreyEnv(gym.Env):
             for row_num, row in enumerate(grid):
                 for idx, item in enumerate(row):
                     if item != 0:
-                        if 'X' in item and 'P' in item:
+                        if 'C' in item and 'P' in item:
                             self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(3))
-                        elif 'X' in item:
+                        elif 'C' in item:
                             self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(1))
                         else:
                             self.stdscr.addstr(row_num, idx * 4, item.center(3),  curses.color_pair(2))
