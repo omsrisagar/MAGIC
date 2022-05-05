@@ -94,13 +94,13 @@ class PredatorPreyEnv(gym.Env):
 
         self.action_space = spaces.MultiDiscrete([self.naction])
 
-        self.BASE = (dims[0] * dims[1])
+        self.BASE = (dims[0] * dims[1]) # class 0 is leftout. Actually while assigning, class 100 is left out, # so classes 0 to 99 correspond to grid cells, 101 to outside class, 102-prey, 103-predator
         self.OUTSIDE_CLASS += self.BASE
         self.PREY_CLASS += self.BASE
         self.PREDATOR_CLASS += self.BASE
 
         # Setting max vocab size for 1-hot encoding
-        self.vocab_size = 1 + 1 + self.BASE + 1 + 1
+        self.vocab_size = 1 + 1 + self.BASE + 1 + 1 # what is the extra one - does this mean class 0 is nothing?
         #          predator + prey + grid + outside
 
         # Observation for each agent will be vision * vision ndarray

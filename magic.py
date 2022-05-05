@@ -29,12 +29,12 @@ class MAGIC(nn.Module):
         self.sub_processor1 = GraphAttention(args.hid_size, args.gat_hid_size, dropout=dropout, negative_slope=negative_slope, num_heads=args.gat_num_heads, self_loop_type=args.self_loop_type1, average=False, normalize=args.first_gat_normalize)
         self.sub_processor2 = GraphAttention(args.gat_hid_size*args.gat_num_heads, args.hid_size, dropout=dropout, negative_slope=negative_slope, num_heads=args.gat_num_heads_out, self_loop_type=args.self_loop_type2, average=True, normalize=args.second_gat_normalize)
         # initialize the gat encoder for the Scheduler
-        if args.use_gat_encoder:
+        if args.use_gat_encoder: # gat_encoder is the one used in the first round of scheduler before calculating # attention coeffs
             self.gat_encoder = GraphAttention(args.hid_size, args.gat_encoder_out_size, dropout=dropout, negative_slope=negative_slope, num_heads=args.ge_num_heads, self_loop_type=1, average=True, normalize=args.gat_encoder_normalize)
 
         self.obs_encoder = nn.Linear(args.obs_size, args.hid_size)
 
-        self.init_hidden(args.batch_size)
+        self.init_hidden(args.batch_size) # this returns the zero state batch_size x nagents x hid_size, # but not captured here!
         self.lstm_cell= nn.LSTMCell(args.hid_size, args.hid_size)
 
         # initialize mlp layers for the sub-schedulers
@@ -122,7 +122,7 @@ class MAGIC(nn.Module):
         num_agents_alive, agent_mask = self.get_agent_mask(batch_size, info)
 
         # if self.args.comm_mask_zero == True, block the communiction (can also comment out the protocol to make training faster)
-        if self.args.comm_mask_zero:
+        if self.args.comm_mask_zero: # if True, agents cannot communicate among themselves
             agent_mask *= torch.zeros(n, 1)
 
         hidden_state, cell_state = self.lstm_cell(encoded_obs.squeeze(), (hidden_state, cell_state))
@@ -239,15 +239,15 @@ class MAGIC(nn.Module):
         # hidden_state: [n * hid_size]
         n = self.args.nagents
         hid_size = hidden_state.size(-1)
-        # hard_attn_input: [n * n * (2*hid_size)]
+        # hard_attn_input: [n * n * (2*hid_size)] # say hiddenstate = [a1,b1,c1,d1,e1] each of length 32; below we # are trying to concatenate all the possible pairs (a1 || a1, a1 || b1, a1 || c1, etc), so it will be 25 * 64
         hard_attn_input = torch.cat([hidden_state.repeat(1, n).view(n * n, -1), hidden_state.repeat(n, 1)], dim=1).view(n, -1, 2 * hid_size)
         # hard_attn_output: [n * n * 2]
         if directed:
             hard_attn_output = F.gumbel_softmax(sub_scheduler_mlp(hard_attn_input), hard=True)
         else:
             hard_attn_output = F.gumbel_softmax(0.5*sub_scheduler_mlp(hard_attn_input)+0.5*sub_scheduler_mlp(hard_attn_input.permute(1,0,2)), hard=True)
-        # hard_attn_output: [n * n * 1]
-        hard_attn_output = torch.narrow(hard_attn_output, 2, 1, 1)
+        # hard_attn_output: [n * n * 1] Below same as hard_attn_output[:, : ,[1]]
+        hard_attn_output = torch.narrow(hard_attn_output, 2, 1, 1) # basically get the second output from # gumbel_softmax (so [0, 1] means probs for [no_connection, connection], so we need probs for connection
         # agent_mask and agent_mask_transpose: [n * n]
         agent_mask = agent_mask.expand(n, n)
         agent_mask_transpose = agent_mask.transpose(0, 1)
@@ -264,6 +264,6 @@ class MAGIC(nn.Module):
         adj = torch.ones(n, n)
         agent_mask = agent_mask.expand(n, n)
         agent_mask_transpose = agent_mask.transpose(0, 1)
-        adj = adj * agent_mask * agent_mask_transpose
+        adj = adj * agent_mask * agent_mask_transpose # element wise mult. makes rows of dead agents to 0; rest as is.
         
         return adj

@@ -78,7 +78,7 @@ class GraphAttention(nn.Module):
         h = torch.mm(input, self.W).view(-1, self.num_heads, self.out_features)
         N = h.size()[0]
     
-        # force the self-loop to happen
+        # force the self-loop to happen # seems like they are reversed below
         if self.self_loop_type == 0:
             adj = adj * (torch.ones(N, N) - torch.eye(N, N))
         # force the self-loop not to happen
@@ -116,11 +116,11 @@ class GraphAttention(nn.Module):
         # the communication graph will be preserved in this way
         attention = attention * adj   
         # normalize: make the some of weights from all agents be 1
-        if self.normalize:
+        if self.normalize: # softmax already did normalization right? Multiplying by adj can unnormalize IT
             if self.self_loop_type != 1:
                 attention += 1e-15
             attention = attention / attention.sum(dim=1).unsqueeze(dim=1).expand(N, N, self.num_heads)
-            attention = attention * adj
+            attention = attention * adj # what is the need of this again? line 117 did it.
         # dropout on the coefficients  
         attention = F.dropout(attention, self.dropout, training=self.training)
         
