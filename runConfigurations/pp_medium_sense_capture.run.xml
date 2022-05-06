@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="pp_medium_sense_capture" type="PythonConfigurationType" factoryName="Python">
-    <output_file path="$PROJECT_DIR$/train_pp_medium.log" is_save="true" />
+    <output_file path="$PROJECT_DIR$/train_pp_medium_sense_capture.log" is_save="true" />
     <module name="MAGIC" />
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
