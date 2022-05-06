@@ -44,8 +44,16 @@ class PredatorPreyEnv(gym.Env):
 
     def init_curses(self):
         self.stdscr = curses.initscr()
+        curses.resizeterm(100, 100)
+        # curses.noecho()  # turn off auto echoing of keypress on to screen
+        # curses.cbreak()  # enter break mode where pressing Enter key
+        # #  after keystroke is not required for it to register
+        # self.stdscr.keypad(1)  # enable special Key values such as curses.KEY_LEFT etc
+        # self.stdscr.nodelay(1) # make calls to stdscr.getch() non-blocking
         curses.start_color()
         curses.use_default_colors()
+        curses.curs_set(0)
+        self.stdscr.clear()
         curses.init_pair(1, curses.COLOR_RED, -1)
         curses.init_pair(2, curses.COLOR_YELLOW, -1)
         curses.init_pair(3, curses.COLOR_CYAN, -1)
@@ -307,7 +315,7 @@ class PredatorPreyEnv(gym.Env):
 
     def render(self, mode='human', close=False):
         grid = np.zeros(self.BASE, dtype=object).reshape(self.dims)
-        self.stdscr.clear()
+        self.stdscr.erase()
 
         for p in self.predator_loc:
             if grid[p[0]][p[1]] != 0:
@@ -317,7 +325,7 @@ class PredatorPreyEnv(gym.Env):
 
         for p in self.prey_loc:
             if grid[p[0]][p[1]] != 0:
-                grid[p[0]][p[1]] = str(grid[p[0]][p[1]]) + 'P'
+                grid[p[0]][p[1]] = 'P' + str(grid[p[0]][p[1]])
             else:
                 grid[p[0]][p[1]] = 'P'
 
