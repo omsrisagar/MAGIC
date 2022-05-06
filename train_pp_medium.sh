@@ -8,7 +8,7 @@ python -u main.py \
   --max_steps 40 \
   --vision 1 \
   --nprocesses 16 \
-  --num_epochs 500 \
+  --num_epochs 200 \
   --epoch_size 10 \
   --hid_size 128 \
   --value_coeff 0.015 \
@@ -28,4 +28,8 @@ python -u main.py \
   --second_gat_normalize \
   --save \
   --seed 0 \
+  --display \
+  --plot \
+  --save_every 20 \
+  --mode cooperative \
   | tee train_pp_medium.log
