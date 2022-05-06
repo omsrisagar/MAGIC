@@ -30,4 +30,5 @@ python -u main.py \
   --display \
   --plot \
   --save_every 20 \
+  --load saved/predator_prey/run1/model.pt \
   | tee train_pp_hard.log

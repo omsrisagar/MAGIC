@@ -30,4 +30,7 @@ python -u main.py \
   --curr_end 0 \
   --save \
   --seed 0 \
+  --display \
+  --plot \
+  --save_every 20 \
   | tee train_tj_medium.log
