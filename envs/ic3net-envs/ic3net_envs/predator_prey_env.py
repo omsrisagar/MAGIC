@@ -267,33 +267,40 @@ class PredatorPreyEnv(gym.Env):
             self.predator_loc[idx][1] = max(0, self.predator_loc[idx][1]-1)
 
     def _get_reward(self):
-        n = self.n_capture_predator if not self.enemy_comm else self.n_capture_predator + self.nprey
+        n = self.npredator if not self.enemy_comm else self.npredator + self.nprey
         reward = np.full(n, self.TIMESTEP_PENALTY)
 
-        on_prey = np.where(np.all(self.predator_loc[self.n_sense_predator: self.npredator] == self.prey_loc,axis=1))[0]
+        on_prey = np.where(np.all(self.predator_loc[self.n_sense_predator:] == self.prey_loc,axis=1))[0]
         nb_predator_on_prey = on_prey.size
 
         if self.mode == 'cooperative':
-            reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey # whoever was on prey each will get combined reward
+            reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey # whoever was on prey will each get pos_prey_reward * on_prey
+            if on_prey.any():
+                reward[:self.n_sense_predator] = self.POS_PREY_REWARD * nb_predator_on_prey # sense nodes receive same reward
         elif self.mode == 'competitive':
             if nb_predator_on_prey:
-                reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey # whoever was on prey will each get pos_prey_reward
+                reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey # whoever was on prey will each get a part of pos_prey_reward
+                if on_prey.any():
+                    reward[:self.n_sense_predator] = self.POS_PREY_REWARD / nb_predator_on_prey
         elif self.mode == 'mixed':
             reward[on_prey] = self.PREY_REWARD # whoever was on prey will each get prey_reward
+            if on_prey.any():
+                reward[:self.n_sense_predator] = self.PREY_REWARD
         else:
             raise RuntimeError("incorrect mode, available modes: [cooperative|competitive|mixed]")
 
         self.reached_prey[on_prey] = 1
 
-        if np.all(self.reached_prey == 1) and self.mode == 'mixed':
-            self.episode_over = True
+        # if np.all(self.reached_prey == 1) and self.mode == 'mixed': # why only in mixed mode this is true?
+        if np.all(self.reached_prey == 1):
+                self.episode_over = True
 
         # Prey reward
         if nb_predator_on_prey == 0:
-            reward[self.n_capture_predator:] = -1 * self.TIMESTEP_PENALTY
+            reward[self.npredator:] = -1 * self.TIMESTEP_PENALTY
         else:
             # TODO: discuss & finalise
-            reward[self.n_capture_predator:] = 0
+            reward[self.npredator:] = 0
 
         # Success ratio
         if self.mode != 'competitive':

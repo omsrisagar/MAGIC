@@ -28,4 +28,8 @@ python -u main.py \
   --second_gat_normalize \
   --save \
   --seed 0 \
+  --display \
+  --plot \
+  --save_every 20 \
+  --mode cooperative \
   | tee train_pp_medium.log
