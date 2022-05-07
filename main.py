@@ -35,6 +35,10 @@ parser.add_argument('--batch_size', type=int, default=500,
 parser.add_argument('--nprocesses', type=int, default=16,
                     help='How many processes to run')
 
+# run name
+parser.add_argument('--name', default='', type=str,
+                    help='Name the current run (directory will be named with this)')
+
 # model
 parser.add_argument('--hid_size', default=64, type=int,
                     help='hidden layer size')
@@ -207,23 +211,27 @@ if args.plot:
 model_dir = Path('./saved') / args.env_name 
 if args.env_name == 'grf':
     model_dir = model_dir / args.scenario
-if not model_dir.exists():
-    curr_run = 'run1'
-else:
-    exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in
-                     model_dir.iterdir() if
-                     str(folder.name).startswith('run')]
-    if len(exst_run_nums) == 0:
+
+if not args.name:
+    if not model_dir.exists():
         curr_run = 'run1'
     else:
-        curr_run = 'run%i' % (max(exst_run_nums) + 1)
+        exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in
+                         model_dir.iterdir() if
+                         str(folder.name).startswith('run')]
+        if len(exst_run_nums) == 0:
+            curr_run = 'run1'
+        else:
+            curr_run = 'run%i' % (max(exst_run_nums) + 1)
+else:
+    curr_run = args.name
 run_dir = model_dir / curr_run
 print(f'Run dir: {run_dir}')
 
 def run(num_epochs, eval=False):
     num_episodes = 0
     if args.save:
-        os.makedirs(run_dir)
+        os.makedirs(run_dir, exist_ok=True)
     for ep in range(num_epochs):
         epoch_begin_time = time.time()
         stat = dict()

@@ -47,10 +47,13 @@ class PredatorPreyEnv(gym.Env):
         self.stdscr = curses.initscr()
         curses.start_color()
         curses.use_default_colors()
+        self.stdscr.clear()
         curses.init_pair(1, curses.COLOR_RED, -1)
         curses.init_pair(2, curses.COLOR_YELLOW, -1)
         curses.init_pair(3, curses.COLOR_CYAN, -1)
         curses.init_pair(4, curses.COLOR_GREEN, -1)
+        curses.init_pair(5, curses.COLOR_BLUE, -1)
+        curses.init_pair(6, curses.COLOR_BLACK, -1)
 
 
     def init_args(self, parser):
@@ -328,7 +331,7 @@ class PredatorPreyEnv(gym.Env):
 
     def render(self, mode='human', close=False):
         grid = np.zeros(self.BASE, dtype=object).reshape(self.dims)
-        self.stdscr.clear()
+        self.stdscr.erase()
 
         for p in self.predator_loc[:self.n_sense_predator]:
             if grid[p[0]][p[1]] != 0:
@@ -353,9 +356,11 @@ class PredatorPreyEnv(gym.Env):
                 for idx, item in enumerate(row):
                     if item != 0:
                         if 'C' in item and 'P' in item:
-                            self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(3))
+                            self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(6))
                         elif 'C' in item:
                             self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(1))
+                        elif 'P' in item:
+                            self.stdscr.addstr(row_num, idx * 4, item.center(3), curses.color_pair(5))
                         else:
                             self.stdscr.addstr(row_num, idx * 4, item.center(3),  curses.color_pair(2))
                     else:
