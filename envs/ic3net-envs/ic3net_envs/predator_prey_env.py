@@ -213,8 +213,11 @@ class PredatorPreyEnv(gym.Env):
         for p in self.predator_loc[self.n_sense_predator:]: # capture predators have no visibility
             slice_y = slice(p[0] + self.vision, p[0] + self.vision + 1) # exact p[0] location considering vision padding
             slice_x = slice(p[1] + self.vision, p[1] + self.vision + 1)
-            ego_obs = self.bool_base_grid[slice_y, slice_x]
-            obs.append(np.tile(ego_obs, (2 * self.vision + 1, 2 * self.vision + 1, 1)))
+            ego_obs = self.bool_base_grid[slice_y, slice_x] # (1, 1, 104)
+            mod_obs = np.zeros((2 * self.vision + 1, 2 * self.vision + 1, self.vocab_size), dtype=np.int64)
+            center_indx = (2 * self.vision + 1) // 2
+            mod_obs[center_indx, center_indx, :] = np.squeeze(ego_obs)
+            obs.append(mod_obs)
 
         if self.enemy_comm:
             for p in self.prey_loc:
@@ -376,4 +379,8 @@ class PredatorPreyEnv(gym.Env):
             raise
 
     def exit_render(self):
-        curses.endwin()
+        # curses.nocbreak()
+        # self.stdscr.keypad(0)
+        # curses.echo()
+        # curses.endwin()
+        pass
