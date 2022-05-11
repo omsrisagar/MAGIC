@@ -33,6 +33,9 @@ class MAGIC(nn.Module):
             self.gat_encoder = GraphAttention(args.hid_size, args.gat_encoder_out_size, dropout=dropout, negative_slope=negative_slope, num_heads=args.ge_num_heads, self_loop_type=1, average=True, normalize=args.gat_encoder_normalize)
 
         self.obs_encoder = nn.Linear(args.obs_size, args.hid_size)
+        self.num_vision_cells = (2 * args.vision + 1) ** 2
+        self.no_vision_obs_size = args.obs_size // self.num_vision_cells
+        self.no_vision_obs_encoder = nn.Linear(self.no_vision_obs_size, args.hid_size)
 
         self.init_hidden(args.batch_size) # this returns the zero state batch_size x nagents x hid_size, # but not captured here!
         self.lstm_cell= nn.LSTMCell(args.hid_size, args.hid_size)
@@ -113,7 +116,14 @@ class MAGIC(nn.Module):
         obs, extras = x
 
         # encoded_obs: [1 (batch_size) * n * hid_size]
-        encoded_obs = self.obs_encoder(obs)
+        # encoded_obs = self.obs_encoder(obs)
+
+        sense_obs = obs[:, :self.args.n_sense_agents, :]
+        capture_obs = obs[:, self.args.n_sense_agents:, :].reshape(-1, self.args.n_capture_agents, self.num_vision_cells, self.no_vision_obs_size)
+        capture_obs = capture_obs[:, :, self.num_vision_cells // 2, :]
+        encoded_sense_obs = self.obs_encoder(sense_obs)
+        encoded_capture_obs = self.no_vision_obs_encoder(capture_obs)
+        encoded_obs = torch.cat((encoded_sense_obs, encoded_capture_obs), dim=-2)
         hidden_state, cell_state = extras
 
         batch_size = encoded_obs.size()[0]

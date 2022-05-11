@@ -279,6 +279,9 @@ class PredatorPreyEnv(gym.Env):
         on_prey = np.where(np.all(self.predator_loc[self.n_sense_predator:] == self.prey_loc,axis=1))[0]
         nb_predator_on_prey = on_prey.size
 
+        self.reached_prey[on_prey] = 1
+        on_prey += self.n_sense_predator
+
         if self.mode == 'cooperative':
             reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey # whoever was on prey will each get pos_prey_reward * on_prey
             if on_prey.any():
@@ -294,8 +297,6 @@ class PredatorPreyEnv(gym.Env):
                 reward[:self.n_sense_predator] = self.PREY_REWARD
         else:
             raise RuntimeError("incorrect mode, available modes: [cooperative|competitive|mixed]")
-
-        self.reached_prey[on_prey] = 1
 
         # if np.all(self.reached_prey == 1) and self.mode == 'mixed': # why only in mixed mode this is true?
         if np.all(self.reached_prey == 1):
