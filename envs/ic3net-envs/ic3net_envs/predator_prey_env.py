@@ -159,6 +159,8 @@ class PredatorPreyEnv(gym.Env):
         """
         self.episode_over = False
         self.reached_prey = np.zeros(self.n_capture_predator)
+        self.preys_sensed = np.zeros((self.n_sense_predator, self.nprey)) # whether sense agent sensed a prey
+        self.preys_captured = np.zeros((self.n_capture_predator, self.nprey)) # whether capture agent captured a prey
 
         # Locations
         locs = self._get_cordinates() # randomly allocate positions for predators and preys
@@ -189,8 +191,21 @@ class PredatorPreyEnv(gym.Env):
 
         # Padding for vision
         self.grid = np.pad(self.grid, self.vision, 'constant', constant_values = self.OUTSIDE_CLASS)
+        self.grid_len = self.grid.shape[0]
 
         self.empty_bool_base_grid = self._onehot_initialization(self.grid)
+
+    def in_slice(self, n, s, length):
+        return n in range(*s.indices(length))
+
+    def find_preys_in_obs(self, pred_indx, slice_x, slice_y):
+        for i, p in enumerate(self.prey_loc):
+            if self.preys_sensed[pred_indx, i]:
+                continue
+            else:
+                in_x = self.in_slice(p[0] + self.vision, slice_x, self.grid_len)
+                in_y = self.in_slice(p[1] + self.vision, slice_y, self.grid_len)
+                self.preys_sensed[pred_indx, i] = in_x and in_y
 
     def _get_obs(self):
         self.bool_base_grid = self.empty_bool_base_grid.copy() # always uses the same empty initial grid and then updates it with predator and prey's positions
@@ -205,9 +220,10 @@ class PredatorPreyEnv(gym.Env):
             self.bool_base_grid[p[0] + self.vision, p[1] + self.vision, self.PREY_CLASS] += 1
 
         obs = []
-        for p in self.predator_loc[:self.n_sense_predator]: # sense predators have visiblity as per vision parameter
-            slice_y = slice(p[0], p[0] + (2 * self.vision) + 1)
+        for i, p in enumerate(self.predator_loc[:self.n_sense_predator]): # sense predators have visiblity as per vision parameter; this code is not correct for vision==0
+            slice_y = slice(p[0], p[0] + (2 * self.vision) + 1) # note that p is in orig grid (10x10); while slice_y, slice_x are in the full grid (12x12) with vision=
             slice_x = slice(p[1], p[1] + (2 * self.vision) + 1)
+            self.find_preys_in_obs(i, slice_x, slice_y)
             obs.append(self.bool_base_grid[slice_y, slice_x])
 
         for p in self.predator_loc[self.n_sense_predator:]: # capture predators have no visibility
@@ -276,38 +292,59 @@ class PredatorPreyEnv(gym.Env):
         n = self.npredator if not self.enemy_comm else self.npredator + self.nprey
         reward = np.full(n, self.TIMESTEP_PENALTY)
 
-        on_prey = np.where(np.all(self.predator_loc[self.n_sense_predator:] == self.prey_loc,axis=1))[0]
-        nb_predator_on_prey = on_prey.size
+        # on_prey = np.full((self.n_capture_predator, ), False)
+        for i, p in enumerate(self.prey_loc):
+            self.preys_captured[:, i] = np.all(self.predator_loc[self.n_sense_predator:] == p, axis=1)
 
-        self.reached_prey[on_prey] = 1
-        on_prey += self.n_sense_predator
-
+        nb_predator_on_prey = self.preys_captured.sum()
+        self.reached_prey = np.any(self.preys_captured, axis=1)
         if self.mode == 'cooperative':
-            reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey # whoever was on prey will each get pos_prey_reward * on_prey
-            if on_prey.any():
-                reward[:self.n_sense_predator] = self.POS_PREY_REWARD * nb_predator_on_prey # sense nodes receive same reward
-        elif self.mode == 'competitive':
-            if nb_predator_on_prey:
-                reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey # whoever was on prey will each get a part of pos_prey_reward
-                if on_prey.any():
-                    reward[:self.n_sense_predator] = self.POS_PREY_REWARD / nb_predator_on_prey
-        elif self.mode == 'mixed':
-            reward[on_prey] = self.PREY_REWARD # whoever was on prey will each get prey_reward
-            if on_prey.any():
-                reward[:self.n_sense_predator] = self.PREY_REWARD
-        else:
-            raise RuntimeError("incorrect mode, available modes: [cooperative|competitive|mixed]")
+            for i in range(self.n_sense_predator):
+                sensed = self.preys_sensed[i, :].astype(bool)
+                captured = np.any(self.preys_captured, axis=0)
+                sensed_and_captured = (sensed & captured).sum()
+                if sensed_and_captured:
+                    reward[i] = sensed_and_captured * self.POS_PREY_REWARD
+            for i in range(self.n_capture_predator):
+                captured = self.preys_captured[i, :].astype(bool)
+                sensed = np.any(self.preys_sensed, axis=0)
+                captured_and_sensed = (captured & sensed).sum()
+                captured_and_not_sensed = (captured & ~sensed).sum()
+                if captured_and_sensed or captured_and_not_sensed:
+                    reward[i+self.n_sense_predator] = captured_and_sensed * self.POS_PREY_REWARD + captured_and_not_sensed * 0.5 * self.POS_PREY_REWARD
+
+        # on_prey = np.where(np.all(self.predator_loc[self.n_sense_predator:] == self.prey_loc, axis=1))[0]
+        # nb_predator_on_prey = on_prey.size
+        #
+        # self.reached_prey[on_prey] = 1
+        # on_prey += self.n_sense_predator
+        #
+        # if self.mode == 'cooperative':
+        #     reward[on_prey] = self.POS_PREY_REWARD * nb_predator_on_prey # whoever was on prey will each get pos_prey_reward * on_prey
+        #     if on_prey.any():
+        #         reward[:self.n_sense_predator] = self.POS_PREY_REWARD * nb_predator_on_prey # sense nodes receive same reward
+        # elif self.mode == 'competitive':
+        #     if nb_predator_on_prey:
+        #         reward[on_prey] = self.POS_PREY_REWARD / nb_predator_on_prey # whoever was on prey will each get a part of pos_prey_reward
+        #         if on_prey.any():
+        #             reward[:self.n_sense_predator] = self.POS_PREY_REWARD / nb_predator_on_prey
+        # elif self.mode == 'mixed':
+        #     reward[on_prey] = self.PREY_REWARD # whoever was on prey will each get prey_reward
+        #     if on_prey.any():
+        #         reward[:self.n_sense_predator] = self.PREY_REWARD
+        # else:
+        #     raise RuntimeError("incorrect mode, available modes: [cooperative|competitive|mixed]")
 
         # if np.all(self.reached_prey == 1) and self.mode == 'mixed': # why only in mixed mode this is true?
         if np.all(self.reached_prey == 1):
                 self.episode_over = True
 
-        # Prey reward
-        if nb_predator_on_prey == 0:
-            reward[self.npredator:] = -1 * self.TIMESTEP_PENALTY
-        else:
-            # TODO: discuss & finalise
-            reward[self.npredator:] = 0
+        # # Prey reward
+        # if nb_predator_on_prey == 0:
+        #     reward[self.npredator:] = -1 * self.TIMESTEP_PENALTY
+        # else:
+        #     # TODO: discuss & finalise
+        #     reward[self.npredator:] = 0
 
         # Success ratio
         if self.mode != 'competitive':
