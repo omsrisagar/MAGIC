@@ -203,8 +203,8 @@ class PredatorPreyEnv(gym.Env):
             if self.preys_sensed[pred_indx, i]:
                 continue
             else:
-                in_x = self.in_slice(p[0] + self.vision, slice_x, self.grid_len)
-                in_y = self.in_slice(p[1] + self.vision, slice_y, self.grid_len)
+                in_y = self.in_slice(p[0] + self.vision, slice_y, self.grid_len)
+                in_x = self.in_slice(p[1] + self.vision, slice_x, self.grid_len)
                 self.preys_sensed[pred_indx, i] = in_x and in_y
 
     def _get_obs(self):
@@ -300,16 +300,20 @@ class PredatorPreyEnv(gym.Env):
         self.reached_prey = np.any(self.preys_captured, axis=1)
         if self.mode == 'cooperative':
             for i in range(self.n_sense_predator):
-                sensed = self.preys_sensed[i, :].astype(bool)
-                captured = np.any(self.preys_captured, axis=0)
+                sensed = self.preys_sensed[i, :].astype(bool) # this agent must have sensed it
+                # sensed = np.any(self.preys_sensed, axis=0) # any sense agent could have sensed
+                captured = np.any(self.preys_captured, axis=0) # any capture agent could have captured it
                 sensed_and_captured = (sensed & captured).sum()
                 if sensed_and_captured:
                     reward[i] = sensed_and_captured * self.POS_PREY_REWARD
             for i in range(self.n_capture_predator):
-                captured = self.preys_captured[i, :].astype(bool)
-                sensed = np.any(self.preys_sensed, axis=0)
+                captured = self.preys_captured[i, :].astype(bool) # whether this agent captured a prey
+                # num_captured = np.sum(self.preys_captured, axis=0) # number of capture agents who captured a prey
+                sensed = np.any(self.preys_sensed, axis=0) # any sense agent could have sensed it
                 captured_and_sensed = (captured & sensed).sum()
                 captured_and_not_sensed = (captured & ~sensed).sum()
+                # captured_and_sensed = (captured * num_captured * sensed).sum()
+                # captured_and_not_sensed = (captured * num_captured * ~sensed).sum()
                 if captured_and_sensed or captured_and_not_sensed:
                     reward[i+self.n_sense_predator] = captured_and_sensed * self.POS_PREY_REWARD + captured_and_not_sensed * 0.5 * self.POS_PREY_REWARD
 
