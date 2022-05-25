@@ -90,10 +90,10 @@ class MAGIC(nn.Module):
                 self.sub_scheduler_mlp2.apply(self.init_linear)
                    
         # initialize the action head (in practice, one action head is used)
-        self.action_heads = nn.ModuleList([nn.Linear(2*args.hid_size, o)
+        self.action_heads = nn.ModuleList([nn.Linear(3*args.hid_size, o) # adding ego obs as well
                                         for o in args.naction_heads])
         # initialize the value head
-        self.value_head = nn.Linear(2 * self.hid_size, 1)
+        self.value_head = nn.Linear(3 * self.hid_size, 1) # adding ego obs as well
 
 
     def forward(self, x, info={}):
@@ -186,11 +186,12 @@ class MAGIC(nn.Module):
         if self.args.message_decoder:
             comm = self.message_decoder(comm)
 
-        value_head = self.value_head(torch.cat((hidden_state, comm), dim=-1))
+        # value_head = self.value_head(torch.cat((hidden_state, comm), dim=-1))
+        value_head = self.value_head(torch.cat((encoded_obs.squeeze(), hidden_state, comm), dim=-1))
         h = hidden_state.view(batch_size, n, self.hid_size)
         c = comm.view(batch_size, n, self.hid_size)
 
-        action_out = [F.log_softmax(action_head(torch.cat((h, c), dim=-1)), dim=-1) for action_head in self.action_heads]
+        action_out = [F.log_softmax(action_head(torch.cat((encoded_obs, h, c), dim=-1)), dim=-1) for action_head in self.action_heads]
 
         return action_out, value_head, (hidden_state.clone(), cell_state.clone())
 
