@@ -27,6 +27,7 @@ import numpy as np
 from gym import spaces
 
 
+# hello
 class PredatorPreyEnv(gym.Env):
     # metadata = {'render.modes': ['human']}
 
@@ -292,8 +293,9 @@ class PredatorPreyEnv(gym.Env):
         n = self.npredator if not self.enemy_comm else self.npredator + self.nprey
         reward = np.full(n, self.TIMESTEP_PENALTY)
 
+        prev_preys_captured = self.preys_captured.copy() # get a copy of previous preys_captured
         # on_prey = np.full((self.n_capture_predator, ), False)
-        for i, p in enumerate(self.prey_loc):
+        for i, p in enumerate(self.prey_loc): # update preys_captured based on current positions
             self.preys_captured[:, i] = np.all(self.predator_loc[self.n_sense_predator:] == p, axis=1)
 
         nb_predator_on_prey = self.preys_captured.sum()
@@ -308,14 +310,24 @@ class PredatorPreyEnv(gym.Env):
                     reward[i] = sensed_and_captured * self.POS_PREY_REWARD
             for i in range(self.n_capture_predator):
                 captured = self.preys_captured[i, :].astype(bool) # whether this agent captured a prey
+                prev_captured = np.any(prev_preys_captured, axis=0) # whether preys have been prev'ly captured
                 # num_captured = np.sum(self.preys_captured, axis=0) # number of capture agents who captured a prey
                 sensed = np.any(self.preys_sensed, axis=0) # any sense agent could have sensed it
-                captured_and_sensed = (captured & sensed).sum()
-                captured_and_not_sensed = (captured & ~sensed).sum()
+                # captured_and_sensed = (captured & sensed).sum()
+                # captured_and_not_sensed = (captured & ~sensed).sum()
+                prev_captured_and_sensed = (captured & prev_captured & sensed).sum() # 0.5x reward
+                prev_captured_and_not_sensed = (captured & prev_captured & ~sensed).sum() # 0.25x reward
+                prev_not_captured_and_sensed = (captured & ~prev_captured & sensed).sum() # 1x reward
+                prev_not_captured_and_not_sensed = (captured & ~prev_captured & ~sensed).sum() # 0.5x reward
                 # captured_and_sensed = (captured * num_captured * sensed).sum()
                 # captured_and_not_sensed = (captured * num_captured * ~sensed).sum()
-                if captured_and_sensed or captured_and_not_sensed:
-                    reward[i+self.n_sense_predator] = captured_and_sensed * self.POS_PREY_REWARD + captured_and_not_sensed * 0.5 * self.POS_PREY_REWARD
+                # if captured_and_sensed or captured_and_not_sensed:
+                #     reward[i+self.n_sense_predator] = captured_and_sensed * self.POS_PREY_REWARD + captured_and_not_sensed * 0.5 * self.POS_PREY_REWARD
+                if captured.any():
+                    reward[i+self.n_sense_predator] = prev_captured_and_sensed * 0.5 * self.POS_PREY_REWARD \
+                                                    + prev_captured_and_not_sensed * 0.25 * self.POS_PREY_REWARD \
+                                                    + prev_not_captured_and_sensed * self.POS_PREY_REWARD \
+                                                    + prev_not_captured_and_not_sensed * 0.5 * self.POS_PREY_REWARD
 
         # on_prey = np.where(np.all(self.predator_loc[self.n_sense_predator:] == self.prey_loc, axis=1))[0]
         # nb_predator_on_prey = on_prey.size
